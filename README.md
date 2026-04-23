@@ -66,7 +66,6 @@ flowchart TD
 | **Deequ integration** | Completeness, uniqueness, compliance, and size metrics |
 | **SCD Type 2** | History tracking with `_effective_from`, `_effective_to`, `_is_current` |
 | **Quarantine** | Failed DQ records isolated with failure reason |
-| **Isolated stacks** | Each deployment is a fully independent CloudFormation stack |
 | **Example use cases** | `vehicle-telemetry` (5 tables) and `healthcare-iot` (2 tables, PII masking) |
 
 ## Security
