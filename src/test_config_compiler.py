@@ -240,7 +240,7 @@ class TestRdsDdl:
         cfg = _minimal_config()
         compiler = ConfigCompiler(cfg)
         ddl = compiler.compile_rds_ddl()
-        assert "total DECIMAL(10,4)" in ddl
+        assert "total DOUBLE PRECISION" in ddl
 
     def test_not_null_constraint(self):
         cfg = _minimal_config()
@@ -362,8 +362,8 @@ class TestRdsDdl:
         assert _map_sql_type("string") == "VARCHAR(255)"
         assert _map_sql_type("varchar") == "VARCHAR(255)"
         assert _map_sql_type("text") == "TEXT"
-        assert _map_sql_type("double") == "DECIMAL(10,4)"
-        assert _map_sql_type("float") == "REAL"
+        assert _map_sql_type("double") == "DOUBLE PRECISION"
+        assert _map_sql_type("float") == "DOUBLE PRECISION"
         assert _map_sql_type("real") == "REAL"
         assert _map_sql_type("long") == "BIGINT"
         assert _map_sql_type("bigint") == "BIGINT"
@@ -413,7 +413,7 @@ class TestCfnParameters:
         cfg = _minimal_config()
         compiler = ConfigCompiler(cfg)
         params = compiler.compile_cfn_parameters()
-        assert params["EnvironmentName"] == "streaming-etl"
+        assert params["EnvironmentName"] == "dq-etl"
 
     def test_environment_name_from_stack_name(self):
         cfg = _minimal_config()

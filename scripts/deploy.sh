@@ -50,6 +50,32 @@ log_step()    { echo -e "${BLUE}[STEP]${NC}    ${BOLD}$1${NC}"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
 # =============================================================================
+# Resolve a Python 3.10+ interpreter (configurable via PYTHON_BIN)
+# =============================================================================
+# The local scripts only run pure-Python helpers (config validator/compiler,
+# JSON param building) which need Python >= 3.10 and PyYAML - NOT the cp310
+# wheels (those are uploaded to S3 for Lambda/Glue). Prefer python3.10 by name
+# but fall back to any python3 that satisfies the minimum version so the
+# scripts are not brittle to the interpreter's exact binary name.
+resolve_python() {
+    if [ -n "${PYTHON_BIN:-}" ]; then
+        command -v "$PYTHON_BIN" &>/dev/null || { log_error "PYTHON_BIN='$PYTHON_BIN' not found"; exit 1; }
+    elif command -v python3.10 &>/dev/null; then
+        PYTHON_BIN="python3.10"
+    elif command -v python3 &>/dev/null; then
+        PYTHON_BIN="python3"
+    else
+        log_error "No python3 interpreter found. Install Python 3.10+ (see scripts/setup-ec2.sh)."
+        exit 1
+    fi
+    if ! "$PYTHON_BIN" -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3, 10) else 1)' 2>/dev/null; then
+        log_error "'$PYTHON_BIN' is older than Python 3.10. Set PYTHON_BIN to a 3.10+ interpreter."
+        exit 1
+    fi
+}
+resolve_python
+
+# =============================================================================
 # Usage Help
 # =============================================================================
 show_help() {
@@ -183,7 +209,7 @@ prompt_passwords() {
 validate_config() {
     log_step "Validating configuration..."
 
-    python3.10 -m src.config_validator --config "$CONFIG_PATH" || {
+    "$PYTHON_BIN" -m src.config_validator --config "$CONFIG_PATH" || {
         log_error "Config validation failed. Fix errors before deploying."
         exit 1
     }
@@ -199,7 +225,7 @@ compile_config() {
 
     rm -rf "$BUILD_DIR"
 
-    python3.10 -m src.config_compiler --config "$CONFIG_PATH" --output "$BUILD_DIR" || {
+    "$PYTHON_BIN" -m src.config_compiler --config "$CONFIG_PATH" --output "$BUILD_DIR" || {
         log_error "Config compilation failed."
         exit 1
     }
@@ -301,10 +327,10 @@ check_prerequisites() {
     log_info "AWS Account: ${account_id}"
     log_info "Region: ${REGION}"
     # Ensure PyYAML is installed locally (needed for config validator and compiler)
-    if ! python3.10 -c "import yaml" 2>/dev/null; then
+    if ! "$PYTHON_BIN" -c "import yaml" 2>/dev/null; then
         log_info "Installing PyYAML for local config validation..."
-        python3.10 -m pip install PyYAML -q || {
-            log_error "Failed to install PyYAML. Run: python3.10 -m pip install PyYAML"
+        "$PYTHON_BIN" -m pip install PyYAML -q || {
+            log_error "Failed to install PyYAML. Run: $PYTHON_BIN -m pip install PyYAML"
             exit 1
         }
     fi
@@ -332,12 +358,16 @@ deploy_cloudformation_stack() {
     local dms_mappings
     dms_mappings=$(cat "${BUILD_DIR}/dms_table_mappings.json")
     local params_file="/tmp/cfn-params.json"
-    python3.10 -c "
+    "$PYTHON_BIN" -c "
 import json, sys
+# Athena/Glue identifiers cannot contain hyphens, so derive a sanitized
+# database name from the stack name (hyphens -> underscores) + _db suffix.
+glue_db = sys.argv[1].replace('-', '_') + '_db'
 params = [
     {'ParameterKey': 'EnvironmentName', 'ParameterValue': sys.argv[1]},
     {'ParameterKey': 'CreateDMSVPCRole', 'ParameterValue': sys.argv[2]},
     {'ParameterKey': 'DMSTableMappings', 'ParameterValue': sys.argv[3]},
+    {'ParameterKey': 'GlueDatabaseName', 'ParameterValue': glue_db},
 ]
 rds_pw = sys.argv[5]
 msk_pw = sys.argv[6]

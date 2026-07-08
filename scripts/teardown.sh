@@ -6,7 +6,7 @@
 # Continues on errors to ensure maximum cleanup.
 #
 # Usage: ./teardown.sh [OPTIONS]
-#   -s, --stack-name    Stack name (default: streaming-etl)
+#   -s, --stack-name    Stack name (default: dq-etl)
 #   -r, --region        AWS region (default: us-east-1)
 #   -f, --force         Skip confirmation prompt
 #   -h, --help          Show this help message
@@ -14,7 +14,7 @@
 
 set +e
 
-STACK_NAME="${STACK_NAME:-streaming-etl}"
+STACK_NAME="${STACK_NAME:-dq-etl}"
 REGION="${AWS_REGION:-us-east-1}"
 FORCE=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,6 +33,15 @@ log_error()   { echo -e "${RED}[ERROR]${NC}   $1"; }
 log_step()    { echo -e "${BLUE}[STEP]${NC}    ${BOLD}$1${NC}"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
+# Resolve a Python interpreter (configurable via PYTHON_BIN). Non-fatal: teardown
+# should keep running even if python is missing (the only use is counting S3
+# object versions, which degrades gracefully to 0).
+if [ -z "${PYTHON_BIN:-}" ]; then
+    if command -v python3.10 &>/dev/null; then PYTHON_BIN="python3.10"
+    elif command -v python3 &>/dev/null; then PYTHON_BIN="python3"
+    else PYTHON_BIN="python3"; fi
+fi
+
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -48,7 +57,7 @@ parse_args() {
 show_help() {
     echo "Usage: $0 [OPTIONS]"
     echo "  --force, -f           Skip confirmation prompt"
-    echo "  --stack-name, -s      CloudFormation stack name (default: streaming-etl)"
+    echo "  --stack-name, -s      CloudFormation stack name (default: dq-etl)"
     echo "  --region, -r          AWS region (default: us-east-1)"
     echo "  --help, -h            Show this help message"
 }
@@ -142,7 +151,7 @@ empty_bucket() {
     versions=$(aws s3api list-object-versions --bucket "$bucket" --region "$REGION" \
         --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null || echo '{"Objects":null}')
     
-    if [ "$versions" != '{"Objects":null}' ] && [ "$(echo "$versions" | python3.10 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("Objects") or []))' 2>/dev/null || echo 0)" -gt 0 ]; then
+    if [ "$versions" != '{"Objects":null}' ] && [ "$(echo "$versions" | "$PYTHON_BIN" -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("Objects") or []))' 2>/dev/null || echo 0)" -gt 0 ]; then
         echo "$versions" | aws s3api delete-objects --bucket "$bucket" --delete file:///dev/stdin --region "$REGION" 2>/dev/null || {
             log_warn "Failed to delete object versions in: ${bucket}"
         }
@@ -161,7 +170,15 @@ empty_buckets() {
         return 0
     fi
     
-    for bucket in $buckets; do
+    # Also discover buckets by the stack-name prefix. Some buckets (e.g. the
+    # versioned S3 access-logs bucket) are NOT exported as stack outputs, so
+    # relying on outputs alone leaves them non-empty and the stack delete fails.
+    local prefix_buckets
+    prefix_buckets=$(aws s3api list-buckets \
+        --query "Buckets[?starts_with(Name, '${STACK_NAME}-')].Name" \
+        --output text 2>/dev/null || echo "")
+
+    for bucket in $buckets $prefix_buckets; do
         empty_bucket "$bucket"
     done
     
