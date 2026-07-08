@@ -54,6 +54,27 @@ log_step()    { echo -e "${BLUE}[STEP]${NC}    ${BOLD}$1${NC}"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 
 # =============================================================================
+# Resolve a Python 3.10+ interpreter (configurable via PYTHON_BIN)
+# =============================================================================
+resolve_python() {
+    if [ -n "${PYTHON_BIN:-}" ]; then
+        command -v "$PYTHON_BIN" &>/dev/null || { log_error "PYTHON_BIN='$PYTHON_BIN' not found"; exit 1; }
+    elif command -v python3.10 &>/dev/null; then
+        PYTHON_BIN="python3.10"
+    elif command -v python3 &>/dev/null; then
+        PYTHON_BIN="python3"
+    else
+        log_error "No python3 interpreter found. Install Python 3.10+ (see scripts/setup-ec2.sh)."
+        exit 1
+    fi
+    if ! "$PYTHON_BIN" -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3, 10) else 1)' 2>/dev/null; then
+        log_error "'$PYTHON_BIN' is older than Python 3.10. Set PYTHON_BIN to a 3.10+ interpreter."
+        exit 1
+    fi
+}
+resolve_python
+
+# =============================================================================
 # Parse Arguments
 # =============================================================================
 parse_args() {
@@ -140,7 +161,7 @@ create_rds_tables() {
     
     if [ ! -f "$ddl_file" ]; then
         log_warn "Generated DDL not found at ${ddl_file}. Running config compiler..."
-        python3.10 -m src.config_compiler --config "$CONFIG_PATH" --output "$BUILD_DIR" || {
+        "$PYTHON_BIN" -m src.config_compiler --config "$CONFIG_PATH" --output "$BUILD_DIR" || {
             log_error "Config compilation failed."
             exit 1
         }

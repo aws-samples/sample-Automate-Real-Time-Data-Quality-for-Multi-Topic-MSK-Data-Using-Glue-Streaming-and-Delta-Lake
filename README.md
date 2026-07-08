@@ -66,6 +66,7 @@ flowchart TD
 | **Deequ integration** | Completeness, uniqueness, compliance, and size metrics |
 | **SCD Type 2** | History tracking with `_effective_from`, `_effective_to`, `_is_current` |
 | **Quarantine** | Failed DQ records isolated with failure reason |
+| **Isolated stacks** | Each deployment is a fully independent CloudFormation stack |
 | **Example use cases** | `vehicle-telemetry` (5 tables) and `healthcare-iot` (2 tables, PII masking) |
 
 ## Security
@@ -82,7 +83,22 @@ flowchart TD
 - Amazon MSK broker logging to Amazon CloudWatch
 
 See [SECURITY.md](SECURITY.md) for the full security design, accepted debt, and production hardening recommendations.
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## Availability & Networking (demo scope)
+
+This template is optimized for a low-cost, single-Region demo, not for high
+availability. Two deliberate single-AZ choices to be aware of before any
+production use:
+
+- **One NAT Gateway in a single public subnet** provides egress for both private
+  subnets. An outage in that AZ cuts off private-subnet egress (Lambda → AWS APIs,
+  Glue → MSK).
+- **The Glue → MSK connection pins a single subnet/AZ.** If that AZ is impaired,
+  the streaming job cannot reach the brokers.
+
+MSK brokers (2, across both private subnets) and RDS (Multi-AZ) are themselves
+spread across AZs. For production, add a NAT Gateway per AZ and make the Glue
+connection AZ-resilient. These are not "fault tolerant" as shipped.
 
 ## Prerequisites
 
@@ -137,7 +153,9 @@ USE_CASE="vehicle-telemetry"   # Options: vehicle-telemetry | healthcare-iot
 SNS_EMAILS=""                  # Optional: comma-separated emails for DQ failure alerts
 ```
 
-#### Deploy the stack (~35-40 mins, Amazon MSK is the bottleneck):
+#### Deploy the stack (~40-50 mins end-to-end, Amazon MSK is the long pole):
+
+> Timing: MSK cluster creation takes ~30 min and is the bottleneck; RDS (~15-17 min) provisions in parallel. `deploy.sh` then spends a few more minutes uploading assets and publishing the three Lambda layers, and `post-deploy.sh` adds ~3-5 min. Plan for roughly 40-50 minutes to a fully working pipeline.
 
 Passwords can be provided three ways (choose one):
 
@@ -343,15 +361,6 @@ Stop the AWS Glue job when not testing. Use `./scripts/teardown.sh` when done.
 | Empty Delta tables | Verify Kafka topics have data, check checkpoints |
 | KMS AccessDeniedException | Ensure Lambda IAM roles have `kms:Decrypt` on the KMS key |
 
-
-
 ## License
 
-This library is licensed under the MIT-0 License. See the LICENSE file.
-
-
-## Contributers
-
-- Nikhil Jha (https://github.com/nikJha007)
-- Shubham Kumar (https://github.com/shubhamkumar101)
-- Abhijeet Kumar (https://github.com/abhijee9)
+This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE) file.

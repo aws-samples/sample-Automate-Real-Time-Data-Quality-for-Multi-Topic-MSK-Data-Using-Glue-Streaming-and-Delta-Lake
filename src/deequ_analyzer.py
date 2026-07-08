@@ -413,7 +413,11 @@ class DeequAnalyzer:
         except Exception as exc:
             logger.error("Failed to write metrics to Delta: %s", exc)
             try:
-                fallback_path = self.metrics_path.replace("/delta/", "/parquet/")
+                # Derive a distinct sibling location so the fallback never points
+                # at the same path the Delta write just failed on. metrics_path is
+                # normalized to a trailing "/" in __init__, e.g.
+                #   s3://bucket/dq_metrics/  ->  s3://bucket/dq_metrics_parquet_fallback/
+                fallback_path = self.metrics_path.rstrip("/") + "_parquet_fallback/"
                 metrics_df.withColumn("_ingested_at", current_timestamp()) \
                     .write.mode("append").parquet(fallback_path)
                 logger.warning("Wrote metrics to fallback Parquet: %s", fallback_path)

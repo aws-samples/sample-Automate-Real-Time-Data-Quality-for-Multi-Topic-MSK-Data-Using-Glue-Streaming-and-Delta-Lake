@@ -35,8 +35,8 @@ TYPE_MAP = {
     "string": "VARCHAR(255)",
     "varchar": "VARCHAR(255)",
     "text": "TEXT",
-    "double": "DECIMAL(10,4)",
-    "float": "REAL",
+    "double": "DOUBLE PRECISION",
+    "float": "DOUBLE PRECISION",
     "real": "REAL",
     "long": "BIGINT",
     "bigint": "BIGINT",
@@ -237,7 +237,7 @@ class ConfigCompiler:
     def compile_cfn_parameters(self) -> Dict[str, str]:
         """Generate CloudFormation parameter overrides."""
         return {
-            "EnvironmentName": self.config.get("_stack_name", "streaming-etl"),
+            "EnvironmentName": self.config.get("_stack_name", "dq-etl"),
         }
 
     def compile_kafka_topic_list(self) -> List[str]:

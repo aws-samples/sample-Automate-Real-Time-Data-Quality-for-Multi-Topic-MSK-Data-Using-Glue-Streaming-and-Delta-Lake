@@ -44,6 +44,8 @@ class ValidationResult:
 BUILTIN_DQ_RULES = {"range", "allowed_values", "regex", "not_null", "unique", "length"}
 BUILTIN_TRANSFORMS = {"trim", "lower", "upper", "round", "mask_pii", "cast", "default_value", "rename"}
 VALID_DEEQU_METRICS = {"completeness", "uniqueness", "compliance", "size"}
+# Deequ metrics that operate on a specific column (size is table-level).
+COLUMN_REQUIRED_DEEQU_METRICS = {"completeness", "uniqueness", "compliance"}
 VALID_SCHEMA_TYPES = {
     "string", "varchar", "text",
     "integer", "int", "long", "bigint",
@@ -184,7 +186,7 @@ class ConfigValidator:
             # Validate deequ checks
             deequ_checks = table.get("deequ_checks")
             if deequ_checks is not None:
-                deequ_errors = self.validate_deequ_checks(deequ_checks, name)
+                deequ_errors = self.validate_deequ_checks(deequ_checks, schema_columns, name)
                 errors.extend(deequ_errors)
             else:
                 warnings.append(ValidationWarning(
@@ -243,7 +245,7 @@ class ConfigValidator:
 
         if table_config.get("deequ_checks") is not None:
             errors.extend(self.validate_deequ_checks(
-                table_config["deequ_checks"], name
+                table_config["deequ_checks"], schema_columns, name
             ))
 
         return errors
@@ -321,18 +323,59 @@ class ConfigValidator:
         return errors
 
     def validate_deequ_checks(
-        self, checks: List[Dict], table_name: str = "<unknown>"
+        self, checks: List[Dict], schema_columns: Set[str] = None,
+        table_name: str = "<unknown>"
     ) -> List[ValidationError]:
-        """Validate Deequ checks against valid metric types."""
+        """
+        Validate Deequ checks. Beyond the metric name, this verifies that
+        column-based metrics reference a real schema column and that every
+        check declares a numeric threshold, so misconfigured checks are caught
+        before deployment rather than at runtime.
+        """
         errors: List[ValidationError] = []
+        schema_columns = schema_columns or set()
 
         for check in checks:
             metric = check.get("metric")
+
+            # Metric name must be one of the built-in analyzers.
             if metric not in VALID_DEEQU_METRICS:
                 errors.append(ValidationError(
                     table_name, "deequ_checks",
                     f"Unknown Deequ metric: {metric}", "error"
                 ))
+                continue
+
+            # Column-based metrics require a column that exists in the schema;
+            # 'size' is table-level and takes no column.
+            col = check.get("column")
+            if metric in COLUMN_REQUIRED_DEEQU_METRICS:
+                if not col:
+                    errors.append(ValidationError(
+                        table_name, "deequ_checks",
+                        f"Deequ metric '{metric}' requires a 'column'", "error"
+                    ))
+                elif schema_columns and col not in schema_columns:
+                    errors.append(ValidationError(
+                        table_name, "deequ_checks",
+                        f"Column '{col}' not in schema", "error"
+                    ))
+
+            # Every check must declare a numeric threshold.
+            if "threshold" not in check:
+                errors.append(ValidationError(
+                    table_name, "deequ_checks",
+                    f"Deequ check for metric '{metric}' is missing 'threshold'",
+                    "error"
+                ))
+            else:
+                threshold = check.get("threshold")
+                if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+                    errors.append(ValidationError(
+                        table_name, "deequ_checks",
+                        f"Deequ 'threshold' for metric '{metric}' must be numeric",
+                        "error"
+                    ))
 
         return errors
 

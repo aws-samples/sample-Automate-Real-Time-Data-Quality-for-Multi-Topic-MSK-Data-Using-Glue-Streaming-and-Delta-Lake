@@ -334,10 +334,10 @@ dq-blog/
 │   ├── deploy.sh                   # Validate → compile → deploy stack → upload assets
 │   ├── post-deploy.sh              # Create tables/topics, start DMS/Glue, create Athena tables, seed data
 │   ├── teardown.sh                 # Stop jobs, empty buckets, delete stack
-│   └── setup-ec2.sh               # One-command EC2 setup (Python 3.10, AWS CLI, PyYAML)
-└── .kiro/
-    └── specs/reusable-config-framework/
-        ├── design.md               # Full design document
-        ├── requirements.md         # EARS-compliant requirements
-        └── tasks.md                # Implementation plan
+│   └── setup-ec2.sh                # One-command EC2 setup (git, Python 3.10, AWS CLI, PyYAML)
+├── README.md                       # Getting started, architecture, references
+├── SECURITY.md                     # Security design, accepted debt, hardening notes
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+└── LICENSE
 ```

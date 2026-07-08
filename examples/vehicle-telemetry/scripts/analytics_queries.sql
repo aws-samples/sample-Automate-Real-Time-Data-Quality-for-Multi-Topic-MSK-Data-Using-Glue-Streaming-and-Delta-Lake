@@ -2,7 +2,10 @@
 -- Vehicle Telemetry - Sample Athena Analytics Queries
 -- ============================================================================
 -- Run these in the Athena console after deploying the vehicle-telemetry use case.
--- Database: {stack_name}_db (e.g., fleet_demo_db)
+-- Database: <stack_name with hyphens replaced by underscores>_db
+--   e.g. stack "fleet-demo" -> database "fleet_demo_db"
+--   (Athena identifiers cannot contain hyphens, so deploy.sh sanitizes the name.)
+-- Set the Athena "Database" dropdown to this database, or fully-qualify tables.
 -- ============================================================================
 
 -- 1. Current vehicle fleet status (SCD2 current records only)
