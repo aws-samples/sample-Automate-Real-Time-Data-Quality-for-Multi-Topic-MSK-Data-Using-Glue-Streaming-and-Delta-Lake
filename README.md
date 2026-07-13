@@ -153,9 +153,9 @@ USE_CASE="vehicle-telemetry"   # Options: vehicle-telemetry | healthcare-iot
 SNS_EMAILS=""                  # Optional: comma-separated emails for DQ failure alerts
 ```
 
-#### Deploy the stack (~40-50 mins end-to-end, Amazon MSK is the long pole):
+#### Deploy the stack (~35-40 mins end-to-end, Amazon MSK is the long pole):
 
-> Timing: MSK cluster creation takes ~30 min and is the bottleneck; RDS (~15-17 min) provisions in parallel. `deploy.sh` then spends a few more minutes uploading assets and publishing the three Lambda layers, and `post-deploy.sh` adds ~3-5 min. Plan for roughly 40-50 minutes to a fully working pipeline.
+> Timing: MSK cluster creation takes ~30 min and is the bottleneck; RDS (~15-17 min) provisions in parallel, so CloudFormation completes in ~31 min. `deploy.sh` then spends a few more minutes uploading assets and publishing the three Lambda layers, and `post-deploy.sh` adds ~3-5 min. Plan for roughly 35-40 minutes to a fully working pipeline.
 
 Passwords can be provided three ways (choose one):
 
@@ -236,10 +236,10 @@ cat /tmp/out.json
 │   ├── config_validator.py             # Config validation
 │   ├── config_compiler.py              # Compiles config → DMS mappings, DDL, CFn params
 │   └── libs/                           # Pre-downloaded wheels and JARs
-├── .threatmodel/
-│   └── STRIDE.md                       # STRIDE threat model
-├── LICENSE                             # MIT-0 License
 ├── SECURITY.md                         # Security design, accepted debt, hardening guide
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── LICENSE                             # MIT-0 License
 └── README.md
 ```
 
@@ -330,7 +330,7 @@ Custom transforms can be added via `register()` in the transform engine.
 | Service | Version |
 |---------|---------|
 | Amazon RDS PostgreSQL | 16.11 |
-| Amazon MSK (Kafka) | 3.5.1 |
+| Amazon MSK (Kafka) | 3.6.0 (default; set via the `KafkaVersion` parameter) |
 | AWS DMS | 3.5.4 |
 | AWS Glue | 4.0 (Spark 3.3, Python 3.10) |
 | Deequ | 2.0.4-spark-3.3 |
