@@ -47,7 +47,8 @@ else
         log_error "sha256sum not available - cannot verify Python tarball integrity. Aborting."
         exit 1
     fi
-    echo "9c54b5c0e8a71c4d597b1db1f84b32ca001980ba4c8c27c94afa308c93978e7f  Python-3.10.14.tgz" | sha256sum -c --quiet || {
+    # Official python.org SHA-256 for Python-3.10.14.tgz (MD5 f67d78c8323a18fe6b945914c51a7aa6).
+    echo "cefea32d3be89c02436711c95a45c7f8e880105514b78680c14fe76f5709a0f6  Python-3.10.14.tgz" | sha256sum -c --quiet || {
         log_error "Python tarball checksum verification FAILED. Aborting to avoid installing a tampered build."
         rm -f Python-3.10.14.tgz
         exit 1

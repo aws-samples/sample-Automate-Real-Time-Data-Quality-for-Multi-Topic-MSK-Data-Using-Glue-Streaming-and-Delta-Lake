@@ -1601,6 +1601,7 @@ Resources:
           import boto3
           import json
           import os
+          import re
           import time
           
           def lambda_handler(event, context):
@@ -1652,7 +1653,14 @@ Resources:
                   return yaml.safe_load(resp['Body'].read().decode('utf-8'))
               
               def get_athena_type(col_type):
-                  return TYPE_MAP.get(col_type.lower(), 'STRING')
+                  t = col_type.lower().strip()
+                  # Preserve precision/scale for parametric decimal/numeric types
+                  # (e.g. decimal(10,4)) so Athena matches the RDS DDL instead of
+                  # silently falling through to STRING.
+                  m = re.match(r'^(?:decimal|numeric)\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)$', t)
+                  if m:
+                      return 'DECIMAL({},{})'.format(m.group(1), m.group(2))
+                  return TYPE_MAP.get(t, 'STRING')
               
               def build_columns(table_config):
                   cols = []
